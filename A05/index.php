@@ -10,19 +10,30 @@ if ($conn->connect_error) {
     die("Connection failed: " . $conn->connect_error);
 }
 
-$sql = "SELECT * FROM islandsofpersonality"; 
-$result = $conn->query($sql);
+$sql_islands = "SELECT * FROM islandsofpersonality"; 
+$result_islands = $conn->query($sql_islands);
 
-if ($result->num_rows > 0) {
-    $islandsofpersonality = [];
-    while($row = $result->fetch_assoc()) {
+$islandsofpersonality = [];
+if ($result_islands->num_rows > 0) {
+    while($row = $result_islands->fetch_assoc()) {
         $islandsofpersonality[] = $row; 
     }
 } else {
-    echo "0 results";
+    echo "No islands found.";
 }
 
-$conn->close();
+
+$sql_contents = "SELECT * FROM islandcontents";
+$result_contents = $conn->query($sql_contents);
+
+$contents = [];
+if ($result_contents->num_rows > 0) {
+    while($row = $result_contents->fetch_assoc()) {
+        $contents[] = $row;
+    }
+} else {
+    echo "No contents found.";
+}
 ?>
 
 <!DOCTYPE html>
@@ -72,7 +83,6 @@ $conn->close();
       display: flex;
       flex-direction: column;
       justify-content: flex-end;
-      /* Align text to the bottom */
     }
 
     .navbar {
@@ -132,67 +142,41 @@ $conn->close();
     </div>
   </div>
 
-  <!-- Modal -->
-  <div id="id01" class="w3-modal">
-    <div class="w3-modal-content w3-card-4 w3-animate-top">
-      <header class="w3-container w3-teal w3-display-container">
-        <span onclick="document.getElementById('id01').style.display='none'"
-          class="w3-button w3-teal w3-display-topright"><i class="fa fa-remove"></i></span>
-        <h4>Title</h4>
-        <h5>Description</h5>
-      </header>
-      <div class="w3-container">
-        <p>Text</p>
-        <p>Text</p>
-      </div>
-      <footer class="w3-container w3-teal">
-        <p>Modal footer</p>
-      </footer>
-    </div>
-  </div>
-
   <!-- Islands Container -->
   <div class="container my-5">
     <h1 class="text-center mb-4">Islands of Personality</h1>
     <div class="row g-4">
-
     <?php
-      foreach ($islandsofpersonality as $island) {
+      foreach ($islandsofpersonality as $index => $island) {
           echo '<div class="col-12 col-sm-6 col-md-3">';
           echo '  <div class="card h-100">';
           echo '    <img src="' . $island['image'] . '" class="card-img-top" alt="' . $island['name'] . '">';
           echo '    <div class="card-body d-flex flex-column">';
-          echo '      <h5 class="card-title ">' . $island['name'] . ' Island</h5>';
+          echo '      <h5 class="card-title">' . $island['name'] . ' Island</h5>';
           echo '      <p class="card-text">' . $island['shortDescription'] . '</p>';
           echo '    </div>';
           echo '  </div>';
           echo '</div>';
+
+          $startIndex = $index * 3;
+          $endIndex = $startIndex + 3;
+          $contentIndex = 0;
+
+          for ($i = $startIndex; $i < $endIndex; $i++) {
+              if (isset($contents[$i])) {
+                  $content = $contents[$i];
+                  echo '<div class="col-12 col-sm-6 col-md-3">';
+                  echo '  <div class="card h-100">';
+                  echo '    <img src="' . $content['image'] . '" class="card-img-top img-fluid" alt="Island Image" style="object-fit: cover; height: 400px;">';
+                  echo '    <div class="card-body d-flex flex-column">';
+                  echo '      <p class="card-text">' . $content['content'] . '</p>';
+                  echo '    </div>';
+                  echo '  </div>';
+                  echo '</div>';
+              }
+          }
       }
     ?>
-    </div>
-  </div>
-
-  <div class="container m-5">
-    <div class="row">
-      <div class="col-md-4">
-        <div class="card">
-          <img src="https://via.placeholder.com/400" class="card-img-top" alt="Card Image">
-          <div class="card-body">
-            <h5 class="card-title">Card Title</h5>
-            <p class="card-text">This is the description of the card. The image is centered, and the text is aligned at
-              the bottom.</p>
-          </div>
-        </div>
-      </div>
-      <div class="col-md-4">
-        <div class="card">
-          <img src="https://via.placeholder.com/400" class="card-img-top" alt="Card Image">
-          <div class="card-body">
-            <h5 class="card-title">Another Card Title</h5>
-            <p class="card-text">This is another card with the same layout, where the text is aligned at the bottom.</p>
-          </div>
-        </div>
-      </div>
     </div>
   </div>
 
@@ -212,37 +196,6 @@ $conn->close();
     crossorigin="anonymous"></script>
 
   <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-  <!-- <script>
-    // Toggle the "See More" and "See Less" functionality
-    const toggleBtns = document.querySelectorAll('.toggle-btn');
-    toggleBtns.forEach(btn => {
-      btn.addEventListener('click', () => {
-        const accordionItem = btn.closest('.accordion-item');
-        const longDesc = accordionItem.querySelector('.long-description');
-        const extraContent = accordionItem.querySelector('.extra-content');
-        
-        // Collapse all other sections
-        document.querySelectorAll('.accordion-item').forEach(item => {
-          if (item !== accordionItem) {
-            item.querySelector('.long-description').classList.add('d-none');
-            item.querySelector('.extra-content').classList.add('d-none');
-            item.querySelector('.toggle-btn').textContent = 'See More';
-          }
-        });
-        
-        // Toggle current section
-        if (longDesc.classList.contains('d-none')) {
-          longDesc.classList.remove('d-none');
-          extraContent.classList.remove('d-none');
-          btn.textContent = 'See Less';
-        } else {
-          longDesc.classList.add('d-none');
-          extraContent.classList.add('d-none');
-          btn.textContent = 'See More';
-        }
-      });
-    });
-  </script> -->
 </body>
 
 </html>
