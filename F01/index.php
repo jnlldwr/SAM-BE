@@ -2,18 +2,20 @@
 session_start();
 require 'config.php';
 
-if (!isset($_SESSION['username'])) {
-    header('Location: login.php');
-    exit();
-}
-
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     if (isset($_POST['content']) && !empty($_POST['content'])) {
         $content = $_POST['content'];
-        $userID = $_SESSION['userID'];
+        $userID = $_SESSION['userID']; // Ensure userID is set in session
 
-        $stmt = $pdo->prepare("INSERT INTO posts (userID, content) VALUES (:userID, :content)");
-        if ($stmt->execute(['userID' => $userID, 'content' => $content])) {
+        $imageUrl = null;
+        if (isset($_FILES['image']) && $_FILES['image']['error'] == UPLOAD_ERR_OK) {
+            $imagePath = 'uploads/' . basename($_FILES['image']['name']);
+            move_uploaded_file($_FILES['image']['tmp_name'], $imagePath);
+            $imageUrl = $imagePath;
+        }
+
+        $stmt = $pdo->prepare("INSERT INTO posts (userID, content, imageUrl) VALUES (:userID, :content, :imageUrl)");
+        if ($stmt->execute(['userID' => $userID, 'content' => $content, 'imageUrl' => $imageUrl])) {
             echo "Post created successfully!";
         } else {
             echo "Error: Unable to create the post.";
@@ -23,25 +25,18 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     }
 }
 
-if (isset($_GET['delete_id'])) {
-    $delete_id = $_GET['delete_id'];
-    $userID = $_SESSION['userID'];
+$isAdminPage = strpos($_SERVER['REQUEST_URI'], '/admin') !== false;
 
-    $stmt = $pdo->prepare("SELECT * FROM posts WHERE id = :id AND userID = :userID");
-    $stmt->execute(['id' => $delete_id, 'userID' => $userID]);
-    $post = $stmt->fetch();
+if ($isAdminPage) {
+    $stmt = $pdo->query("SELECT * FROM users");
+    $users = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-    if ($post) {
-        $stmt = $pdo->prepare("DELETE FROM posts WHERE id = :id");
-        $stmt->execute(['id' => $delete_id]);
-        echo "Post deleted successfully!";
-    } else {
-        echo "You cannot delete this post.";
-    }
+    $stmt = $pdo->query("SELECT posts.*, users.username FROM posts JOIN users ON posts.userID = users.userID ORDER BY postDate DESC");
+    $posts = $stmt->fetchAll(PDO::FETCH_ASSOC);
+} else {
+    $stmt = $pdo->query("SELECT posts.*, users.username FROM posts JOIN users ON posts.userID = users.userID ORDER BY postDate DESC");
+    $posts = $stmt->fetchAll(PDO::FETCH_ASSOC);
 }
-
-$stmt = $pdo->query("SELECT posts.*, users.username FROM posts JOIN users ON posts.userID = users.userID ORDER BY postDate DESC");
-$posts = $stmt->fetchAll(PDO::FETCH_ASSOC);
 ?>
 
 <!doctype html>
@@ -181,13 +176,30 @@ $posts = $stmt->fetchAll(PDO::FETCH_ASSOC);
         .dropdown-item:hover {
             background-color: #f8f9fa;
         }
+
+        .trending .card {
+            margin-bottom: 10px;
+        }
+
+        .trending .card-body {
+            padding: 10px;
+        }
+
+        .trending .card-title {
+            font-size: 16px;
+            font-weight: bold;
+        }
+
+        .trending .card-text {
+            font-size: 14px;
+        }
     </style>
 </head>
 
 <body>
     <nav class="navbar navbar-expand-lg navbar-white text-black sticky-top">
         <div class="container-fluid d-flex justify-content-between">
-            <a class="navbar-brand" href="#">
+            <a class="navbar-brand" href="index.php">
                 <img src="https://github.com/jnlldwr/SAM-BE/blob/main/F01/logoWhite.png?raw=true" width="80">
             </a>
             <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav"
@@ -223,7 +235,7 @@ $posts = $stmt->fetchAll(PDO::FETCH_ASSOC);
     <div id="content">
         <aside class="sidebar">
             <div class="card mb-2">
-                <a href="#" class="card-link text-decoration-none">
+                <a href="index.php" class="card-link text-decoration-none">
                     <div class="card-body d-flex align-items-center">
                         <i class="fa fa-home me-3"></i>
                         <span>Home</span>
@@ -249,63 +261,90 @@ $posts = $stmt->fetchAll(PDO::FETCH_ASSOC);
         </aside>
 
         <main class="main-content">
-            <div class="post-form">
-                <h4>Create a Post</h4>
-                <form method="POST" action="index.php">
-                    <textarea name="content" class="form-control" rows="4" placeholder="Write something..." required></textarea>
-                    <button type="submit" class="btn btn-primary mt-3">Post</button>
-                </form>
-            </div>
+            <?php if ($isAdminPage): ?>
+                <h1>Admin Dashboard</h1>
+                <div class="mb-5">
+                    <h2>Users</h2>
+                    <table class="table table-striped">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Username</th>
+                                <th>Email</th>
+                                <th>Role</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php foreach ($users as $user): ?>
+                                <tr>
+                                    <td><?= $user['userID'] ?></td>
+                                    <td><?= $user['username'] ?></td>
+                                    <td><?= $user['email'] ?></td>
+                                    <td><?= $user['is_admin'] ? 'Admin' : 'User' ?></td>
+                                </tr>
+                            <?php endforeach; ?>
+                        </tbody>
+                    </table>
+                </div>
 
-            <div id="posts">
-                <?php foreach ($posts as $post): ?>
-                    <div class="post">
-                        <div class="user-info">
-                            <img src="" class="rounded-circle">
-                            <div>
-                                <strong><?= htmlspecialchars($post['username']) ?></strong>
-                                <a href="#" class="text-decoration-none">@<?= htmlspecialchars($post['username']) ?></a>
+                <div class="mb-5">
+                    <h2>Posts</h2>
+                    <table class="table table-striped">
+                        <thead>
+                            <tr>
+                                <th>Post ID</th>
+                                <th>Username</th>
+                                <th>Content</th>
+                                <th>Posted On</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php foreach ($posts as $post): ?>
+                                <tr>
+                                    <td><?= $post['id'] ?></td>
+                                    <td><?= $post['username'] ?></td>
+                                    <td><?= $post['content'] ?></td>
+                                    <td><?= $post['postDate'] ?></td>
+                                    <td>
+                                        <a href="index.php?admin=1&delete_id=<?= $post['id'] ?>" class="btn btn-danger btn-sm">Delete</a>
+                                    </td>
+                                </tr>
+                            <?php endforeach; ?>
+                        </tbody>
+                    </table>
+                </div>
+            <?php else: ?>
+                <div class="post-form mb-3 pb-5">
+                    <h4>Create a Post</h4>
+                    <form method="POST" action="index.php" enctype="multipart/form-data">
+                        <textarea name="content" class="form-control" rows="4" placeholder="Write something..." required></textarea>
+                        <input type="file" name="image" class="form-control mt-2">
+                        <button type="submit" class="btn btn-primary mt-3 float-end">Post</button>
+                    </form>
+                </div>
+
+                <div id="posts">
+                    <?php foreach ($posts as $post): ?>
+                        <div class="post">
+                            <div class="user-info">
+                                <img src="" class="rounded-circle">
+                                <div>
+                                    <strong><?= htmlspecialchars($post['username']) ?></strong>
+                                    <a href="#" class="text-decoration-none">@<?= htmlspecialchars($post['username']) ?></a>
+                                </div>
+                            </div>
+                            <p><?= htmlspecialchars($post['content']) ?></p>
+                            <div class="buttons">
+                                <button class="btn"><i class="fa fa-comment"></i></button>
+                                <button class="btn"><i class="fa fa-heart"></i></button>
+                                <button class="btn"><i class="fa fa-retweet"></i></button>
                             </div>
                         </div>
-                        <p><?= htmlspecialchars($post['content']) ?></p>
-                        <div class="buttons">
-                            <button class="btn"><i class="fa fa-comment"></i></button>
-                            <button class="btn"><i class="fa fa-heart"></i></button>
-                            <button class="btn"><i class="fa fa-retweet"></i></button>
-
-                            <?php if ($post['userID'] == $_SESSION['userID']): ?>
-                                <a href="index.php?delete_id=<?= $post['id'] ?>" class="btn btn-danger">
-                                    <i class="fa fa-trash"></i> Delete
-                                </a>
-                            <?php endif; ?>
-                        </div>
-                    </div>
-                <?php endforeach; ?>
-            </div>
+                    <?php endforeach; ?>
+                </div>
+            <?php endif; ?>
         </main>
-
-        <aside class="trending d-none d-md-block">
-            <h5 class="mb-3">Trending</h5>
-            <div class="card mb-3 shadow-sm">
-                <div class="card-body">
-                    <h6 class="card-title">#Olympics</h6>
-                    <p class="card-text text-muted">100K Posts</p>
-                </div>
-            </div>
-            <div class="card mb-3 shadow-sm">
-                <div class="card-body">
-                    <h6 class="card-title">#GoldMedal</h6>
-                    <p class="card-text text-muted">65K Posts</p>
-                </div>
-            </div>
-            <div class="card mb-3 shadow-sm">
-                <div class="card-body">
-                    <h6 class="card-title">#Training</h6>
-                    <p class="card-text text-muted">30K Posts</p>
-                </div>
-            </div>
-            <a href="#" class="btn btn-link text-decoration-none">Show more</a>
-        </aside>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"

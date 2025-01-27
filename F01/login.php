@@ -6,12 +6,15 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $username = $_POST['username'];
     $password = $_POST['password'];
 
+    // Fetch the user from the database by username
     $stmt = $pdo->prepare("SELECT * FROM users WHERE username = :username");
     $stmt->execute(['username' => $username]);
     $user = $stmt->fetch();
 
+    // Check if the user exists and the password matches
     if ($user && $password === $user['password']) {
         $_SESSION['username'] = $user['username'];
+        $_SESSION['userID'] = $user['userID'];  // Set the userID session variable
         header('Location: index.php');
         exit();
     } else {

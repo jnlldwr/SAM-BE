@@ -7,11 +7,13 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $password = $_POST['password'];
     $confirmPassword = $_POST['confirm_password'];
 
+    // Check if fields are empty
     if (empty($username) || empty($password) || empty($confirmPassword)) {
         $error = "All fields are required!";
     } elseif ($password !== $confirmPassword) {
         $error = "Passwords do not match!";
     } else {
+        // Check if username already exists in the database
         $stmt = $pdo->prepare("SELECT * FROM users WHERE username = :username");
         $stmt->execute(['username' => $username]);
         $user = $stmt->fetch();
@@ -19,12 +21,17 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         if ($user) {
             $error = "Username already exists!";
         } else {
+            // Hash the password before storing it
+            $hashedPassword = password_hash($password, PASSWORD_DEFAULT);
+
+            // Insert the user data into the database
             $stmt = $pdo->prepare("INSERT INTO users (username, password) VALUES (:username, :password)");
             $stmt->execute([
                 'username' => $username,
-                'password' => $password
+                'password' => $hashedPassword
             ]);
 
+            // Store the username in session and redirect to login
             $_SESSION['username'] = $username;
             header('Location: login.php');
             exit();
@@ -35,12 +42,11 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 
 <!doctype html>
 <html lang="en">
-<html lang="en">
 
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Login - OLYMPICS</title>
+    <title>Register - OLYMPICS</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet"
         integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
     <style>
