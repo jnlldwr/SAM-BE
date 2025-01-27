@@ -1,11 +1,47 @@
 <?php
 session_start();
-
+require 'config.php';
 
 if (!isset($_SESSION['username'])) {
     header('Location: login.php');
     exit();
 }
+
+if ($_SERVER['REQUEST_METHOD'] == 'POST') {
+    if (isset($_POST['content']) && !empty($_POST['content'])) {
+        $content = $_POST['content'];
+        $userID = $_SESSION['userID'];
+
+        $stmt = $pdo->prepare("INSERT INTO posts (userID, content) VALUES (:userID, :content)");
+        if ($stmt->execute(['userID' => $userID, 'content' => $content])) {
+            echo "Post created successfully!";
+        } else {
+            echo "Error: Unable to create the post.";
+        }
+    } else {
+        echo "Content cannot be empty.";
+    }
+}
+
+if (isset($_GET['delete_id'])) {
+    $delete_id = $_GET['delete_id'];
+    $userID = $_SESSION['userID'];
+
+    $stmt = $pdo->prepare("SELECT * FROM posts WHERE id = :id AND userID = :userID");
+    $stmt->execute(['id' => $delete_id, 'userID' => $userID]);
+    $post = $stmt->fetch();
+
+    if ($post) {
+        $stmt = $pdo->prepare("DELETE FROM posts WHERE id = :id");
+        $stmt->execute(['id' => $delete_id]);
+        echo "Post deleted successfully!";
+    } else {
+        echo "You cannot delete this post.";
+    }
+}
+
+$stmt = $pdo->query("SELECT posts.*, users.username FROM posts JOIN users ON posts.userID = users.userID ORDER BY postDate DESC");
+$posts = $stmt->fetchAll(PDO::FETCH_ASSOC);
 ?>
 
 <!doctype html>
@@ -18,6 +54,7 @@ if (!isset($_SESSION['username'])) {
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet"
         integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
+    <link rel="icon" href="https://github.com/jnlldwr/SAM-BE/blob/main/F01/icon.png?raw=true" type="image/x-icon">
     <style>
         body {
             display: flex;
@@ -131,6 +168,19 @@ if (!isset($_SESSION['username'])) {
         .card-body {
             cursor: pointer;
         }
+
+        .dropdown-menu {
+            right: 0;
+            left: auto;
+        }
+
+        .dropdown-item {
+            color: #000;
+        }
+
+        .dropdown-item:hover {
+            background-color: #f8f9fa;
+        }
     </style>
 </head>
 
@@ -150,11 +200,10 @@ if (!isset($_SESSION['username'])) {
                         <li class="nav-item"><a class="nav-link" href="signin.php">Sign In</a></li>
                         <li class="nav-item"><a class="nav-link" href="register.php">Register</a></li>
                     <?php else: ?>
-                        <li class="nav-item dropdown d-none">
+                        <li class="nav-item dropdown">
                             <a class="nav-link dropdown-toggle" href="#" id="userDropdown" role="button"
                                 data-bs-toggle="dropdown" aria-expanded="false">
-                                <i class="bi bi-person-circle"></i>
-                                <?= $_SESSION['username'] ?>
+                                <i class="fa fa-user-circle"></i> <?= $_SESSION['username'] ?>
                             </a>
                             <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="userDropdown">
                                 <li><a class="dropdown-item" href="profile.php">Profile</a></li>
@@ -162,7 +211,7 @@ if (!isset($_SESSION['username'])) {
                                 <li>
                                     <hr class="dropdown-divider">
                                 </li>
-                                <li><a class="dropdown-item" href="logout.php">Logout</a></li>
+                                <li><a class="dropdown-item" href="logout.php"><i class="fa fa-sign-out"></i> Logout</a></li>
                             </ul>
                         </li>
                     <?php endif; ?>
@@ -200,21 +249,38 @@ if (!isset($_SESSION['username'])) {
         </aside>
 
         <main class="main-content">
-            <div class="post">
-                <div class="user-info">
-                    <img src="">
-                    <div>
-                        <strong>Name</strong>
-                        <a href=" #" class="text-decoration-none">@username</a>
+            <div class="post-form">
+                <h4>Create a Post</h4>
+                <form method="POST" action="index.php">
+                    <textarea name="content" class="form-control" rows="4" placeholder="Write something..." required></textarea>
+                    <button type="submit" class="btn btn-primary mt-3">Post</button>
+                </form>
+            </div>
+
+            <div id="posts">
+                <?php foreach ($posts as $post): ?>
+                    <div class="post">
+                        <div class="user-info">
+                            <img src="" class="rounded-circle">
+                            <div>
+                                <strong><?= htmlspecialchars($post['username']) ?></strong>
+                                <a href="#" class="text-decoration-none">@<?= htmlspecialchars($post['username']) ?></a>
+                            </div>
+                        </div>
+                        <p><?= htmlspecialchars($post['content']) ?></p>
+                        <div class="buttons">
+                            <button class="btn"><i class="fa fa-comment"></i></button>
+                            <button class="btn"><i class="fa fa-heart"></i></button>
+                            <button class="btn"><i class="fa fa-retweet"></i></button>
+
+                            <?php if ($post['userID'] == $_SESSION['userID']): ?>
+                                <a href="index.php?delete_id=<?= $post['id'] ?>" class="btn btn-danger">
+                                    <i class="fa fa-trash"></i> Delete
+                                </a>
+                            <?php endif; ?>
+                        </div>
                     </div>
-                </div>
-                <p>Text content</p>
-                <img src="" class="img-fluid">
-                <div class="buttons">
-                    <button class="btn"><i class="fa fa-comment"></i></button>
-                    <button class="btn"><i class="fa fa-heart"></i></button>
-                    <button class="btn"><i class="fa fa-retweet"></i></button>
-                </div>
+                <?php endforeach; ?>
             </div>
         </main>
 
@@ -245,6 +311,7 @@ if (!isset($_SESSION['username'])) {
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"
         integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz"
         crossorigin="anonymous"></script>
+
 </body>
 
 </html>
